@@ -91,9 +91,11 @@
 	<!--	Convertor	-->
 		<dependency>
 			<groupId>ws.schild</groupId>
-			<artifactId>jave-core</artifactId>
+			<artifactId>jave-all-deps</artifactId>
 			<version>3.3.1</version>
 		</dependency>
+
+
 	</dependencies>
 
 	<build>

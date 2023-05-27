@@ -29,15 +29,18 @@ import java.util.*;
 @Service
 public class TelegramBotService extends TelegramLongPollingBot {
 
+    private static final String FILE_URI_TEMPLATE = "https://api.telegram.org/file/bot%s/%s";
     private final WebClient webClient;
     private final AudioConverter audioConverter;
+    private final String botToken;
     @Value("${telegram.bot.username}")
     private String botUsername;
-    private String botToken;
+
 
     @Autowired
     public TelegramBotService(WebClient webClient,
-                              AudioConverter audioConverter, @Value("${telegram.bot.token}") String botToken) {
+                              AudioConverter audioConverter,
+                              @Value("${telegram.bot.token}") String botToken) {
         super(botToken);
         this.webClient = webClient;
         this.audioConverter = audioConverter;
@@ -86,18 +89,14 @@ public class TelegramBotService extends TelegramLongPollingBot {
             getFile.setFileId(fileId);
             File file = execute(getFile);
             String filePath = file.getFilePath();
-            String fileUrl = String.format(
-                    "https://api.telegram.org/file/bot%s/%s", botToken, filePath
-            );
+            String fileUrl = String.format(FILE_URI_TEMPLATE, botToken, filePath);
             String uuid = UUID.randomUUID().toString();
             java.io.File ogg = saveVoice(fileUrl, uuid);
             audioConverter.convertToMp3(ogg, uuid);
         } catch (IOException | TelegramApiException e) {
-            log.error("an error has occurred while saving the voice" ,e);
+            log.error("An error has occurred while saving the voice" ,e);
             e.printStackTrace();
         }
-
-
     }
 
     private java.io.File saveVoice(String fileUrl, String name) throws IOException {
@@ -109,8 +108,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                         .block())
                 .orElseThrow();
         Path path = Paths.get(String.format("%s.ogg", name));
-        return Files
-                .write(path, Objects.requireNonNull(voice))
+        return Files.write(path, Objects.requireNonNull(voice))
                 .toFile();
     }
 
@@ -131,7 +129,10 @@ public class TelegramBotService extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            log.error("error while sending message: '{}', user chat id '{}'", messageText, chatId, e);
+            log.error(
+                    "error while sending message: '{}', user chat id '{}'",
+                    messageText, chatId, e
+            );
         }
     }
 }
