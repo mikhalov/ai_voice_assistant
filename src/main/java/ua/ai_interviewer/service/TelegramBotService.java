@@ -1,7 +1,6 @@
 package ua.ai_interviewer.service;
 
 import jakarta.annotation.PostConstruct;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +16,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import ua.ai_interviewer.dto.chatgpt.ChatGPTResponse;
 import ua.ai_interviewer.util.AudioConverter;
 
 import java.io.IOException;
@@ -24,14 +24,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class TelegramBotService extends TelegramLongPollingBot {
 
     private static final String FILE_URI_TEMPLATE = "https://api.telegram.org/file/bot%s/%s";
-    private final WebClient webClient;
+    private final ChatGPTService chatGPTService;
     private final AudioConverter audioConverter;
+    private final WebClient webClient;
     private final String botToken;
     @Value("${telegram.bot.username}")
     private String botUsername;
@@ -40,10 +42,12 @@ public class TelegramBotService extends TelegramLongPollingBot {
     @Autowired
     public TelegramBotService(WebClient webClient,
                               AudioConverter audioConverter,
+                              ChatGPTService chatGPTService,
                               @Value("${telegram.bot.token}") String botToken) {
         super(botToken);
         this.webClient = webClient;
         this.audioConverter = audioConverter;
+        this.chatGPTService = chatGPTService;
         this.botToken = botToken;
     }
 
@@ -76,14 +80,26 @@ public class TelegramBotService extends TelegramLongPollingBot {
             if (message.hasText()) {
                 executeMessage(update);
             } else if (message.hasVoice()) {
-                executeVoice(update);
+                executeVoiceAndGetAnswerFromChat(message);
             }
         }
 
     }
 
-    private void executeVoice(Update update) {
-        String fileId = update.getMessage().getVoice().getFileId();
+    private void executeVoiceAndGetAnswerFromChat(Message message) {
+        java.io.File mp3 = executeVoice(message);
+        String transcribed = chatGPTService.transcribe(mp3);
+        ChatGPTResponse search = chatGPTService.search(transcribed);
+        String collected = search.getChoices()
+                .stream()
+                .map(c -> c.getMessage().getContent())
+                .collect(Collectors.joining());
+        sendMessage(message.getChatId(), collected);
+    }
+
+    private java.io.File executeVoice(Message message) {
+        String fileId = message.getVoice().getFileId();
+
         try {
             GetFile getFile = new GetFile();
             getFile.setFileId(fileId);
@@ -92,11 +108,13 @@ public class TelegramBotService extends TelegramLongPollingBot {
             String fileUrl = String.format(FILE_URI_TEMPLATE, botToken, filePath);
             String uuid = UUID.randomUUID().toString();
             java.io.File ogg = saveVoice(fileUrl, uuid);
-            audioConverter.convertToMp3(ogg, uuid);
+
+            return audioConverter.convertToMp3(ogg, uuid);
         } catch (IOException | TelegramApiException e) {
             log.error("An error has occurred while saving the voice" ,e);
             e.printStackTrace();
         }
+        return null;
     }
 
     private java.io.File saveVoice(String fileUrl, String name) throws IOException {

@@ -1,5 +1,6 @@
 package ua.ai_interviewer.config;
 
+import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,4 +15,8 @@ public class HttpClientConfiguration {
         return HttpClient.newBuilder().connectTimeout(Duration.ofMinutes(2L)).build();
     }
 
+    @Bean
+    public OkHttpClient okHttpClient() {
+        return new OkHttpClient();
+    }
 }

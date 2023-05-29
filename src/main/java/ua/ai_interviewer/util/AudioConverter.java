@@ -14,7 +14,7 @@ import java.io.File;
 @Component
 public class AudioConverter extends DefaultFFMPEGLocator {
 
-    public void convertToMp3(File source, String targetName) {
+    public File convertToMp3(File source, String targetName) {
         AudioAttributes audio = new AudioAttributes();
         audio.setCodec("libmp3lame");
         audio.setBitRate(128000);
@@ -33,5 +33,7 @@ public class AudioConverter extends DefaultFFMPEGLocator {
         } catch (Exception e) {
             log.error("An error has occurred while converting audio", e);
         }
+
+        return file;
     }
 }

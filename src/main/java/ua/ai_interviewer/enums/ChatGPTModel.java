@@ -5,7 +5,8 @@ import lombok.Getter;
 @Getter
 public enum ChatGPTModel {
 
-    GPT_TURBO("gpt-3.5-turbo");
+    GPT_TURBO("gpt-3.5-turbo"),
+    WISPER("whisper-1");
 
     private String value;
 
