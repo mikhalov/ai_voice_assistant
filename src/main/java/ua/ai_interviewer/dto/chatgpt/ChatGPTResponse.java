@@ -7,8 +7,9 @@ import java.util.List;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
+@AllArgsConstructor
 @ToString
+@NoArgsConstructor
 public class ChatGPTResponse {
 
     private String model;

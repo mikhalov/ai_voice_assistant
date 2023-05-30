@@ -1,15 +1,14 @@
 package ua.ai_interviewer.dto.chatgpt;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 @Getter
 @Setter
 @Builder
 @ToString
-public class ChatGPTMessages {
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
+public class ChatGPTMessage {
 
     private String role;
     private String content;

@@ -7,8 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ua.ai_interviewer.dto.chatgpt.ChatGPTChoices;
-import ua.ai_interviewer.dto.chatgpt.ChatGPTResponse;
-import ua.ai_interviewer.service.ChatGTPService;
+import ua.ai_interviewer.service.OpenAIService;
 
 import java.util.List;
 
@@ -16,16 +15,16 @@ import java.util.List;
 @RequestMapping()
 public class ChatGTPController {
 
-    private final ChatGTPService chatGTPService;
+    private final OpenAIService openAIService;
 
     @Autowired
-    public ChatGTPController (ChatGTPService chatGTPService) {
-        this.chatGTPService = chatGTPService;
+    public ChatGTPController(OpenAIService openAIService) {
+        this.openAIService = openAIService;
     }
 
     @GetMapping
     public ResponseEntity<List<ChatGPTChoices>> search(@RequestParam String search) {
-        var response = chatGTPService.search(search);
+        var response = openAIService.search(search);
         return new ResponseEntity<>(response.getChoices(), response.getHttpStatus());
     }
 }

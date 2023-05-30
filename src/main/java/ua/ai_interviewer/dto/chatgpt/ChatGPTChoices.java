@@ -1,17 +1,13 @@
 package ua.ai_interviewer.dto.chatgpt;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
-
-import java.util.List;
+import lombok.*;
 
 @Getter
 @Setter
-@RequiredArgsConstructor
+@AllArgsConstructor
 @ToString
+@NoArgsConstructor
 public class ChatGPTChoices {
 
-    private ChatGPTMessages message;
+    private ChatGPTMessage message;
 }
