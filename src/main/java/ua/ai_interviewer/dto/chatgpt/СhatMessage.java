@@ -8,9 +8,8 @@ import lombok.*;
 @ToString
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
-public class ChatGPTMessage {
+public class СhatMessage {
 
     private String role;
     private String content;
-
 }
