@@ -9,7 +9,7 @@ import ua.ai_interviewer.exception.TooManyRequestsException;
 import java.io.File;
 import java.util.List;
 
-public interface OpenAIService {
+public interface OpenAiService {
 
     ChatGPTResponse search(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException;
 
