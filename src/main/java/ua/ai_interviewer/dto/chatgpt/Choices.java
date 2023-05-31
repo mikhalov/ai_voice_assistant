@@ -9,5 +9,5 @@ import lombok.*;
 @NoArgsConstructor
 public class Choices {
 
-    private СhatMessage message;
+    private ChatMessage message;
 }

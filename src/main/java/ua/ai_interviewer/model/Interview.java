@@ -3,7 +3,7 @@ package ua.ai_interviewer.model;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
-import ua.ai_interviewer.dto.chatgpt.СhatMessage;
+import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -20,9 +20,9 @@ public class Interview {
     private String id;
     private Long chatId;
     private boolean active;
-    private List<СhatMessage> conversation;
+    private List<ChatMessage> conversation;
 
-    public void addMessage(СhatMessage message) {
+    public void addMessage(ChatMessage message) {
         if (conversation != null) {
             conversation.add(message);
         } else {

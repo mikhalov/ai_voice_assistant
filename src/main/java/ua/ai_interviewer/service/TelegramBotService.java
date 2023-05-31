@@ -5,8 +5,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.BodyExtractors;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
@@ -16,19 +19,20 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import ua.ai_interviewer.dto.chatgpt.СhatMessage;
+import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 import ua.ai_interviewer.exception.OpenAIRequestException;
 import ua.ai_interviewer.exception.TooManyRequestsException;
 import ua.ai_interviewer.model.Interview;
 import ua.ai_interviewer.util.AudioConverter;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -37,7 +41,6 @@ import java.util.stream.Collectors;
 @Service
 public class TelegramBotService extends TelegramLongPollingBot {
 
-    private static final String FILE_URI_TEMPLATE = "https://api.telegram.org/file/bot%s/%s";
     private final ConcurrentHashMap<Long, Boolean> activeUsers = new ConcurrentHashMap<>();
     private final InterviewService interviewService;
     private final OpenAIService openAIService;
@@ -121,7 +124,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     .orElseThrow(FileNotFoundException::new);
             String transcribed = openAIService.transcribe(mp3).text();
             interview.addMessage(openAIService.createMessage(transcribed));
-            List<СhatMessage> conversation = interview.getConversation();
+            List<ChatMessage> conversation = interview.getConversation();
             var response = openAIService.search(conversation);
             log.debug("{}", response.toString());
             chatResponse = response.getChoices()
@@ -169,8 +172,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
             org.telegram.telegrambots.meta.api.objects.File voice = execute(getFile);
             String filePath = voice.getFilePath();
             String fileUniqueId = voice.getFileUniqueId();
-            log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             String fileUrl = voice.getFileUrl(botToken);
+            log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             File ogg = saveVoice(fileUrl, fileUniqueId);
             Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
             safeDeleteFile(ogg);
@@ -182,17 +185,28 @@ public class TelegramBotService extends TelegramLongPollingBot {
         return Optional.empty();
     }
 
-    private File saveVoice(String fileUrl, String name) throws IOException {
-        byte[] voice = Optional.ofNullable(
-                webClient.get()
-                        .uri(fileUrl)
-                        .retrieve()
-                        .bodyToMono(byte[].class)
-                        .block()
-        ).orElseThrow();
+    private File saveVoice(String fileUrl, String name) throws UncheckedIOException {
         String voicePath = String.format("%s%s", name, fileUrl.substring(fileUrl.lastIndexOf('.')));
-        return Files.write(Paths.get(voicePath), Objects.requireNonNull(voice))
-                .toFile();
+        Path outputPath = Paths.get(voicePath);
+
+        webClient.get()
+                .uri(fileUrl)
+                .exchangeToFlux(response -> response.body(BodyExtractors.toDataBuffers()))
+                .doOnError(e -> log.error("Error during voice save", e))
+                .doOnNext(dataBuffer -> {
+                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(bytes);
+                    DataBufferUtils.release(dataBuffer);
+
+                    try (FileOutputStream out = new FileOutputStream(outputPath.toFile(), true)) {
+                        out.write(bytes);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .blockLast();
+
+        return outputPath.toFile();
     }
 
     private void processText(Message message) {

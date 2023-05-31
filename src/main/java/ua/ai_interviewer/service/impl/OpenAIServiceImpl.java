@@ -17,7 +17,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 import reactor.util.retry.RetryBackoffSpec;
-import ua.ai_interviewer.dto.chatgpt.СhatMessage;
+import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 import ua.ai_interviewer.dto.chatgpt.ChatGPTRequest;
 import ua.ai_interviewer.dto.chatgpt.ChatGPTResponse;
 import ua.ai_interviewer.dto.wisper.WisperResponse;
@@ -50,7 +50,7 @@ public class OpenAIServiceImpl implements OpenAIService {
     @Value("${chat.gpt.token}")
     private String apiToken;
 
-    public ChatGPTResponse search(List<СhatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException {
+    public ChatGPTResponse search(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException {
         var chatGPTRequest = createChatGPTRequest(conversation);
         log.debug("Sending POST to ChatGPT");
 
@@ -71,8 +71,8 @@ public class OpenAIServiceImpl implements OpenAIService {
                 EMPTY_RESPONSE_WISPER, MediaType.MULTIPART_FORM_DATA);
     }
 
-    public СhatMessage createMessage(String content)  {
-        return СhatMessage.builder()
+    public ChatMessage createMessage(String content)  {
+        return ChatMessage.builder()
                 .role(Role.USER.value)
                 .content(content)
                 .build();
@@ -121,7 +121,7 @@ public class OpenAIServiceImpl implements OpenAIService {
     }
 
 
-    private ChatGPTRequest createChatGPTRequest(List<СhatMessage> conversation) {
+    private ChatGPTRequest createChatGPTRequest(List<ChatMessage> conversation) {
         return ChatGPTRequest.builder()
                 .model(GPT_TURBO.getValue())
                 .temperature(TEMPERATURE)

@@ -10,7 +10,7 @@ import java.util.List;
 public class ChatGPTRequest {
 
     private String model;
-    private List<СhatMessage> messages;
+    private List<ChatMessage> messages;
     private Float temperature;
 
 }
