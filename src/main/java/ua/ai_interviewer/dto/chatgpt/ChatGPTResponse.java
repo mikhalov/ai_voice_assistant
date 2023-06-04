@@ -1,7 +1,6 @@
 package ua.ai_interviewer.dto.chatgpt;
 
 import lombok.*;
-import org.springframework.http.HttpStatus;
 
 import java.util.List;
 
@@ -13,6 +12,7 @@ import java.util.List;
 public class ChatGPTResponse {
 
     private String model;
-    private List<ChatGPTChoices> choices;
-    private HttpStatus httpStatus;
+    @ToString.Exclude
+    private List<Choices> choices;
+    private Usage usage;
 }

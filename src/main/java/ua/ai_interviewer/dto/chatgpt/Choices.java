@@ -7,7 +7,7 @@ import lombok.*;
 @AllArgsConstructor
 @ToString
 @NoArgsConstructor
-public class ChatGPTChoices {
+public class Choices {
 
-    private ChatGPTMessage message;
+    private ChatMessage message;
 }

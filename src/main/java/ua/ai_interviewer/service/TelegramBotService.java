@@ -1,42 +1,60 @@
 package ua.ai_interviewer.service;
 
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.BodyExtractors;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import ua.ai_interviewer.exception.OpenAIRequestException;
-import ua.ai_interviewer.exception.TooManyRequestsException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import ua.ai_interviewer.dto.chatgpt.ChatMessage;
+import ua.ai_interviewer.dto.chatgpt.StreamResponse;
+import ua.ai_interviewer.enums.Role;
+import ua.ai_interviewer.exception.*;
+import ua.ai_interviewer.model.Interview;
+import ua.ai_interviewer.service.impl.AsyncOpenAIServiceImpl;
 import ua.ai_interviewer.util.AudioConverter;
+import ua.ai_interviewer.util.WebClientUtil;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class TelegramBotService extends TelegramLongPollingBot {
 
-    private static final String FILE_URI_TEMPLATE = "https://api.telegram.org/file/bot%s/%s";
-    private final OpenAIService openAIService;
-    private final AudioConverter audioConverter;
+    private final ConcurrentHashMap<Long, Boolean> activeUsers = new ConcurrentHashMap<>();
+    private final AsyncOpenAIServiceImpl asyncOpenAIService;
+    private final ObjectMapper objectMapper;
+    private final InterviewService interviewService;
+    private final OpenAiService openAIService;
     private final WebClient webClient;
     private final String botToken;
     @Value("${telegram.bot.username}")
@@ -44,14 +62,18 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
 
     @Autowired
-    public TelegramBotService(WebClient webClient,
-                              AudioConverter audioConverter,
-                              OpenAIService openAIService,
+    public TelegramBotService(AsyncOpenAIServiceImpl asyncOpenAIService,
+                              ObjectMapper objectMapper,
+                              WebClient webClient,
+                              OpenAiService openAIService,
+                              InterviewService interviewService,
                               @Value("${telegram.bot.token}") String botToken) {
         super(botToken);
+        this.asyncOpenAIService = asyncOpenAIService;
+        this.objectMapper = objectMapper;
         this.webClient = webClient;
-        this.audioConverter = audioConverter;
         this.openAIService = openAIService;
+        this.interviewService = interviewService;
         this.botToken = botToken;
     }
 
@@ -64,6 +86,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private void initCommands() {
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/hello", "say hello to bot"));
+        listOfCommands.add(new BotCommand("/reset", "reset current conversation"));
         try {
             this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
         } catch (TelegramApiException e) {
@@ -80,20 +103,28 @@ public class TelegramBotService extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         log.trace("Received new update");
         if (update.hasMessage()) {
-            CompletableFuture.runAsync(
-                    () -> processMessage(update),
-                    Executors.newFixedThreadPool(20)
-            );
+            Message message = update.getMessage();
+            if (!activeUsers.containsKey(message.getChatId())) {
+                CompletableFuture.runAsync(() -> {
+                    activeUsers.put(message.getChatId(), true);
+                    processMessage(message);
+
+                    activeUsers.remove(message.getChatId());
+                });
+            } else sendMessage(message.getChatId(),
+                    """
+                            Still processing your previously message.
+                            You can forward it when it has been done""");
         }
 
     }
 
-    private void processMessage(Update update) {
-        Message message = update.getMessage();
+    private void processMessage(Message message) {
+
         if (message.hasText()) {
             processText(message);
         } else if (message.hasVoice()) {
-            processVoiceAndGetAnswerFromChat(message);
+            processVoiceAndGetAnswerFromChatAsync(message);
         }
     }
 
@@ -102,30 +133,155 @@ public class TelegramBotService extends TelegramLongPollingBot {
         sendMessage(message.getChatId(), "Processing your voice. Wait.",
                 message.getMessageId());
         File mp3 = null;
+        Interview interview = interviewService.getActiveIfExistOrCreateByChatId(message.getChatId());
         try {
             mp3 = processVoice(message)
                     .orElseThrow(FileNotFoundException::new);
             String transcribed = openAIService.transcribe(mp3).text();
-            chatResponse = openAIService.search(transcribed)
-                    .getChoices()
+            interview.addMessage(openAIService.createMessage(transcribed));
+            List<ChatMessage> conversation = interview.getConversation();
+            var response = openAIService.search(conversation);
+            log.debug("{}", response.toString());
+            chatResponse = response.getChoices()
                     .stream()
-                    .map(c -> c.getMessage().getContent())
+                    .map(choice -> {
+                        var m = choice.getMessage();
+                        interview.addMessage(m);
+                        return m.getContent();
+                    })
                     .collect(Collectors.joining());
             log.trace("Got response text {}", chatResponse);
+            interviewService.update(interview);
         } catch (OpenAIRequestException e) {
             chatResponse = "Error occurred during AI request, you can try forward voice";
-            log.error(chatResponse, e);
+            log.error("{}", chatResponse, e);
         } catch (TooManyRequestsException e) {
             chatResponse = "Too many requests, retry has fallen, you can try forward voice";
-            log.error(chatResponse, e);
+            log.error("{}", chatResponse, e);
         } catch (IOException e) {
             chatResponse = "Error occurred during file processing, you can try forward voice";
-            log.error(chatResponse, e);
+            log.error("{}", chatResponse, e);
+        } catch (Exception e) {
+            log.error("{}", chatResponse, e);
         } finally {
             sendMessage(message.getChatId(), chatResponse, message.getMessageId());
             safeDeleteFile(mp3);
         }
     }
+
+    private void processVoiceAndGetAnswerFromChatAsync(Message message) {
+        Long chatId = message.getChatId();
+        sendMessage(chatId, "Processing your voice. Wait.",
+                message.getMessageId());
+        File mp3 = null;
+        Interview interview = interviewService.getActiveIfExistOrCreateByChatId(chatId);
+        try {
+            mp3 = processVoice(message)
+                    .orElseThrow(FileNotFoundException::new);
+            String transcribed = openAIService.transcribe(mp3).text();
+            interview.addMessage(openAIService.createMessage(transcribed));
+            List<ChatMessage> conversation = interview.getConversation();
+
+            sendConversationToChatGptAndResponseToUser(chatId, message.getMessageId(), interview, conversation);
+        } catch (Exception e) {
+            handleError(e, chatId, message.getMessageId());
+        } finally {
+            safeDeleteFile(mp3);
+        }
+    }
+
+    private void sendConversationToChatGptAndResponseToUser(
+            Long chatId,
+            Integer responseToMessageId,
+            Interview interview,
+            List<ChatMessage> conversation) {
+        StringBuilder response = new StringBuilder();
+        int messageId = sendMessage(chatId, "...", responseToMessageId);
+
+        Mono<Void> chatResponseHandler = asyncOpenAIService.getResponseFromChatGpt(conversation)
+                .timeout(Duration.ofSeconds(100),
+                        Flux.error(new OpenAIRequestException("Reached timeout of request")))
+                .doOnNext(event -> {
+                    log.trace("{}", event.data());
+                    if (event.data() == null || event.data().equals("[DONE]")) {
+                        return;
+                    }
+                    StreamResponse streamResponse = handleEvent(event);
+                    String content = streamResponse.choices()
+                            .stream()
+                            .map(choice -> choice.delta().content())
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.joining());
+                    if (content.isEmpty()) {
+                        return;
+                    }
+                    response.append(content);
+                })
+                .doOnError(error -> handleError(error, chatId, messageId))
+                .doOnComplete(() -> {
+                    sendEditMessage(chatId, response.toString(), messageId);
+                    log.debug("Stream completed");
+                    interview.addMessage(ChatMessage.builder()
+                            .role(Role.ASSISTANT.value)
+                            .content(response.toString())
+                            .build());
+                    interviewService.update(interview);
+                })
+                .then();
+
+        Flux<Long> intervalFlux = Flux.interval(Duration.ofSeconds(2))
+                .doOnNext(tick -> sendEditMessage(chatId, response.toString(), messageId))
+                .doOnError(error -> log.error("Error occurred", error));
+
+        intervalFlux.takeUntilOther(chatResponseHandler)
+                .retryWhen(WebClientUtil.retryAfterTooManyRequests())
+                .subscribe();
+    }
+
+    private void handleError(Throwable error, Long chatId, Integer messageId) {
+        String chatResponse;
+        switch (error) {
+            case OpenAIRequestException e -> {
+                chatResponse = "Error occurred during AI request, you can try forward voice";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case TooManyRequestsException e -> {
+                chatResponse = "Too many requests, retrying";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case TokenLimitExceptions e -> {
+                chatResponse = "Token limit has been reached, you can reset conversation";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case IOException e -> {
+                chatResponse = "Error occurred during file processing, you can try forward voice";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            }default -> {
+                chatResponse = "Unexpected error";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, error);
+            }
+        }
+    }
+
+    private void sendEditMessage(Long chatId, String response, int messageId) {
+        try {
+            EditMessageText editMessageText = new EditMessageText();
+            editMessageText.setChatId(chatId);
+            editMessageText.setMessageId(messageId);
+            editMessageText.setText(response);
+
+            execute(editMessageText);
+        } catch (TelegramApiException e) {
+            log.error(
+                    "Error during send edit message chat id {}, message id {}",
+                    chatId, messageId, e
+            );
+            throw new MessageSendingException("Failed to send message to chatId: " + chatId, e);
+        }
+    }
+
 
     private void safeDeleteFile(File file) {
         if (file != null) try {
@@ -144,10 +300,11 @@ public class TelegramBotService extends TelegramLongPollingBot {
             getFile.setFileId(fileId);
             org.telegram.telegrambots.meta.api.objects.File voice = execute(getFile);
             String filePath = voice.getFilePath();
-            String fileUrl = String.format(FILE_URI_TEMPLATE, botToken, filePath);
-            String uuid = UUID.randomUUID().toString();
-            File ogg = saveVoice(fileUrl, uuid);
-            Optional<File> fileOptional = Optional.ofNullable(audioConverter.convertToMp3(ogg, uuid));
+            String fileUniqueId = voice.getFileUniqueId();
+            String fileUrl = voice.getFileUrl(botToken);
+            log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
+            File ogg = saveVoice(fileUrl, fileUniqueId);
+            Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
             safeDeleteFile(ogg);
 
             return fileOptional;
@@ -157,30 +314,56 @@ public class TelegramBotService extends TelegramLongPollingBot {
         return Optional.empty();
     }
 
-    private File saveVoice(String fileUrl, String name) throws IOException {
-        byte[] voice = Optional.ofNullable(
-                webClient.get()
-                        .uri(fileUrl)
-                        .retrieve()
-                        .bodyToMono(byte[].class)
-                        .block()
-        ).orElseThrow();
-        Path path = Paths.get(String.format("%s.ogg", name));
-        return Files.write(path, Objects.requireNonNull(voice))
-                .toFile();
+    private File saveVoice(String fileUrl, String name) throws UncheckedIOException {
+        String voicePath = String.format("%s%s", name, fileUrl.substring(fileUrl.lastIndexOf('.')));
+        Path outputPath = Paths.get(voicePath);
+
+        webClient.get()
+                .uri(fileUrl)
+                .exchangeToFlux(response -> response.body(BodyExtractors.toDataBuffers()))
+                .doOnError(e -> log.error("Error during voice save", e))
+                .doOnNext(dataBuffer -> {
+                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(bytes);
+                    DataBufferUtils.release(dataBuffer);
+
+                    try (FileOutputStream out = new FileOutputStream(outputPath.toFile(), true)) {
+                        out.write(bytes);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .blockLast();
+
+        return outputPath.toFile();
     }
 
     private void processText(Message message) {
         Long chatId = message.getChatId();
         String inputText = message.getText();
-        log.trace("chat id '{}', message: {}", chatId, inputText);
+        log.debug("chat id '{}', message: {}", chatId, inputText);
         switch (inputText) {
             case "/hello" -> sendMessage(chatId, "welcome");
+            case "/reset" -> resetConversation(chatId);
             default -> sendMessage(chatId, "wrong command");
         }
     }
 
-    private void sendMessage(long chatId, String messageText, Integer replyToMessageId) {
+    private void resetConversation(Long chatId) {
+        interviewService.getActiveByChatId(chatId)
+                .ifPresentOrElse(
+                        interview -> {
+                            interview.setActive(false);
+                            interviewService.update(interview);
+                            String message = "Conversation has been reset successful";
+                            log.debug("{} for chat id {}", message, chatId);
+                            sendMessage(chatId, message);
+                        },
+                        () -> sendMessage(chatId, "You do not have active conversation")
+                );
+    }
+
+    private int sendMessage(long chatId, String messageText, Integer replyToMessageId) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(messageText);
@@ -188,16 +371,28 @@ public class TelegramBotService extends TelegramLongPollingBot {
             message.setReplyToMessageId(replyToMessageId);
         }
         try {
-            execute(message);
+            return execute(message).getMessageId();
         } catch (TelegramApiException e) {
             log.error(
                     "Error while sending message: '{}', user chat id '{}'",
                     messageText, chatId, e
             );
+            throw new MessageSendingException("Failed to send message to chatId: " + chatId, e);
         }
     }
 
-    private void sendMessage(long chatId, String messageText) {
-        sendMessage(chatId, messageText, null);
+    private int sendMessage(long chatId, String messageText) {
+        return sendMessage(chatId, messageText, null);
+    }
+
+    private StreamResponse handleEvent(ServerSentEvent<String> event) {
+        String data = event.data();
+        try {
+            log.trace("Received event: {}", data);
+            return objectMapper.readValue(data, StreamResponse.class);
+        } catch (JsonProcessingException e) {
+            log.error("Error processing JSON: " + e.getMessage());
+            throw new EventHandlingException("Failed to handle event: " + data);
+        }
     }
 }

@@ -1,7 +1,8 @@
 package ua.ai_interviewer.util;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import ws.schild.jave.Encoder;
 import ws.schild.jave.EncoderException;
 import ws.schild.jave.InputFormatException;
@@ -12,10 +13,10 @@ import ws.schild.jave.encode.EncodingAttributes;
 import java.io.File;
 
 @Slf4j
-@Component
-public class AudioConverter {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class AudioConverter {
 
-    public File convertToMp3(File source, String targetName) {
+    public static File convertToMp3(File source, String targetName) {
         AudioAttributes audio = new AudioAttributes();
         audio.setCodec("libmp3lame");
         audio.setBitRate(128000);
@@ -31,7 +32,6 @@ public class AudioConverter {
         try {
             encoder.encode(new MultimediaObject(source), file, attrs);
             log.debug("Successful converted and create new file {}", file.getAbsolutePath());
-            log.debug("Successful deleted source file");
         } catch (InputFormatException e) {
             log.error("The source multimedia file cannot be decoded.", e);
         } catch (EncoderException e) {
