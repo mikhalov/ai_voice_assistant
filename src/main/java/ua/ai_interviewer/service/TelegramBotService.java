@@ -327,7 +327,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
             String fileUrl = voice.getFileUrl(botToken);
             log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             File ogg = saveVoice(fileUrl, fileUniqueId);
-            log.debug("Voice has been saved {}", ogg.getPath());
+            log.debug("Voice has been saved {}", ogg.getAbsolutePath());
             Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
 //            safeDeleteFile(ogg);
 
