@@ -4,13 +4,10 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpStatus;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.ClientResponse;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 import reactor.util.retry.RetryBackoffSpec;
@@ -19,6 +16,7 @@ import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 import ua.ai_interviewer.exception.OpenAIRequestException;
 import ua.ai_interviewer.exception.TokenLimitExceptions;
 import ua.ai_interviewer.exception.TooManyRequestsException;
+import ua.ai_interviewer.exception.UnauthorizedExeption;
 
 import java.io.File;
 import java.time.Duration;
@@ -49,9 +47,13 @@ public final class WebClientUtil {
                             log.error("Token limit has been reached request, status code: {}, body: {}", statusCode, body);
                             yield Mono.error(new TokenLimitExceptions("Token limit has been reached"));
                         }
+                        case 401 -> {
+                            log.error("Token limit has been reached request, status code: {}, body: {}", statusCode, body);
+                            yield Mono.error(new UnauthorizedExeption("Invalid API key"));
+                        }
                         default -> {
                             log.error("Error during ChatGPT request, status code: {}, body: {}", statusCode, body);
-                            yield  Mono.error(new OpenAIRequestException("Error during OpenAI API request: " + statusCode));
+                            yield Mono.error(new OpenAIRequestException("Error during OpenAI API request: " + statusCode));
                         }
                     };
                 });
