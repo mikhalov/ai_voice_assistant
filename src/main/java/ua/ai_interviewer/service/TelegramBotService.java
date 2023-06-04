@@ -246,7 +246,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 sendMessage(chatId, chatResponse, messageId);
                 log.error("{}", chatResponse, e);
             } case TooManyRequestsException e -> {
-                chatResponse = "Too many requests, retrying";
+                chatResponse = "Too many requests, retrying fallen";
                 sendMessage(chatId, chatResponse, messageId);
                 log.error("{}", chatResponse, e);
             } case TokenLimitExceptions e -> {
@@ -257,7 +257,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 chatResponse = "Error occurred during file processing, you can try forward voice";
                 sendMessage(chatId, chatResponse, messageId);
                 log.error("{}", chatResponse, e);
-            }default -> {
+            } default -> {
                 chatResponse = "Unexpected error";
                 sendMessage(chatId, chatResponse, messageId);
                 log.error("{}", chatResponse, error);
