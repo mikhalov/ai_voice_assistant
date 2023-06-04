@@ -178,6 +178,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         try {
             mp3 = processVoice(message)
                     .orElseThrow(FileNotFoundException::new);
+            log.debug("Got converted file {}", mp3.getPath());
             String transcribed = openAIService.transcribe(mp3).text();
             interview.addMessage(openAIService.createMessage(transcribed));
             List<ChatMessage> conversation = interview.getConversation();
@@ -185,9 +186,10 @@ public class TelegramBotService extends TelegramLongPollingBot {
             sendConversationToChatGptAndResponseToUser(chatId, message.getMessageId(), interview, conversation);
         } catch (Exception e) {
             handleError(e, chatId, message.getMessageId());
-        } finally {
-            safeDeleteFile(mp3);
         }
+//        } finally {
+//            safeDeleteFile(mp3);
+//        }
     }
 
     private void sendConversationToChatGptAndResponseToUser(
@@ -325,8 +327,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
             String fileUrl = voice.getFileUrl(botToken);
             log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             File ogg = saveVoice(fileUrl, fileUniqueId);
+            log.debug("Voice has been saved {}", ogg.getPath());
             Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
-            safeDeleteFile(ogg);
+//            safeDeleteFile(ogg);
 
             return fileOptional;
         } catch (TelegramApiException e) {
