@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 public class TelegramBotService extends TelegramLongPollingBot {
 
     private final ConcurrentHashMap<Long, Boolean> activeUsers = new ConcurrentHashMap<>();
-    private final AsyncOpenAIServiceImpl asyncOpenAIService;
+    private final AsyncOpenAIService asyncOpenAIService;
     private final ObjectMapper objectMapper;
     private final InterviewService interviewService;
     private final OpenAiService openAIService;
@@ -128,47 +128,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private void processVoiceAndGetAnswerFromChat(Message message) {
-        String chatResponse = "Unexpected error";
-        sendMessage(message.getChatId(), "Processing your voice. Wait.",
-                message.getMessageId());
-        File mp3 = null;
-        Interview interview = interviewService.getActiveIfExistOrCreateByChatId(message.getChatId());
-        try {
-            mp3 = processVoice(message)
-                    .orElseThrow(FileNotFoundException::new);
-            String transcribed = openAIService.transcribe(mp3).text();
-            interview.addMessage(openAIService.createMessage(transcribed));
-            List<ChatMessage> conversation = interview.getConversation();
-            var response = openAIService.search(conversation);
-            log.debug("{}", response.toString());
-            chatResponse = response.getChoices()
-                    .stream()
-                    .map(choice -> {
-                        var m = choice.getMessage();
-                        interview.addMessage(m);
-                        return m.getContent();
-                    })
-                    .collect(Collectors.joining());
-            log.trace("Got response text {}", chatResponse);
-            interviewService.update(interview);
-        } catch (OpenAIRequestException e) {
-            chatResponse = "Error occurred during AI request, you can try forward voice";
-            log.error("{}", chatResponse, e);
-        } catch (TooManyRequestsException e) {
-            chatResponse = "Too many requests, retry has fallen, you can try forward voice";
-            log.error("{}", chatResponse, e);
-        } catch (IOException e) {
-            chatResponse = "Error occurred during file processing, you can try forward voice";
-            log.error("{}", chatResponse, e);
-        } catch (Exception e) {
-            log.error("{}", chatResponse, e);
-        } finally {
-            sendMessage(message.getChatId(), chatResponse, message.getMessageId());
-            safeDeleteFile(mp3);
-        }
-    }
-
     private void processVoiceAndGetAnswerFromChatAsync(Message message) {
         Long chatId = message.getChatId();
         sendMessage(chatId, "Processing your voice. Wait.",
@@ -178,7 +137,6 @@ public class TelegramBotService extends TelegramLongPollingBot {
         try {
             mp3 = processVoice(message)
                     .orElseThrow(FileNotFoundException::new);
-            log.debug("Got converted file {}", mp3.getPath());
             String transcribed = openAIService.transcribe(mp3).text();
             interview.addMessage(openAIService.createMessage(transcribed));
             List<ChatMessage> conversation = interview.getConversation();
@@ -186,10 +144,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
             sendConversationToChatGptAndResponseToUser(chatId, message.getMessageId(), interview, conversation);
         } catch (Exception e) {
             handleError(e, chatId, message.getMessageId());
+        } finally {
+            safeDeleteFile(mp3);
         }
-//        } finally {
-//            safeDeleteFile(mp3);
-//        }
     }
 
     private void sendConversationToChatGptAndResponseToUser(
@@ -240,52 +197,31 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 .subscribe();
     }
 
-    // feature for java 20
-//    private void handleError(Throwable error, Long chatId, Integer messageId) {
-//        String chatResponse;
-//        switch (error) {
-//            case OpenAIRequestException e -> {
-//                chatResponse = "Error occurred during AI request, you can try forward voice";
-//                sendMessage(chatId, chatResponse, messageId);
-//                log.error("{}", chatResponse, e);
-//            } case TooManyRequestsException e -> {
-//                chatResponse = "Too many requests, retrying fallen";
-//                sendMessage(chatId, chatResponse, messageId);
-//                log.error("{}", chatResponse, e);
-//            } case TokenLimitExceptions e -> {
-//                chatResponse = "Token limit has been reached, you can reset conversation";
-//                sendMessage(chatId, chatResponse, messageId);
-//                log.error("{}", chatResponse, e);
-//            } case IOException e -> {
-//                chatResponse = "Error occurred during file processing, you can try forward voice";
-//                sendMessage(chatId, chatResponse, messageId);
-//                log.error("{}", chatResponse, e);
-//            } default -> {
-//                chatResponse = "Unexpected error";
-//                sendMessage(chatId, chatResponse, messageId);
-//                log.error("{}", chatResponse, error);
-//            }
-//        }
-//    }
     private void handleError(Throwable error, Long chatId, Integer messageId) {
         String chatResponse;
-
-        if (error instanceof OpenAIRequestException) {
-            chatResponse = "Error occurred during AI request, you can try forward voice";
-        } else if (error instanceof TooManyRequestsException) {
-            chatResponse = "Too many requests, retrying fallen";
-        } else if (error instanceof TokenLimitExceptions) {
-            chatResponse = "Token limit has been reached, you can reset conversation";
-        } else if (error instanceof IOException) {
-            chatResponse = "Error occurred during file processing, you can try forward voice";
-        } else if (error instanceof UnauthorizedExeption) {
-            chatResponse = "Unauthorized request";
-        } else {
-            chatResponse = "Unexpected error";
+        switch (error) {
+            case OpenAIRequestException e -> {
+                chatResponse = "Error occurred during AI request, you can try forward voice";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case TooManyRequestsException e -> {
+                chatResponse = "Too many requests, retrying fallen";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case TokenLimitExceptions e -> {
+                chatResponse = "Token limit has been reached, you can reset conversation";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } case IOException e -> {
+                chatResponse = "Error occurred during file processing, you can try forward voice";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, e);
+            } default -> {
+                chatResponse = "Unexpected error";
+                sendMessage(chatId, chatResponse, messageId);
+                log.error("{}", chatResponse, error);
+            }
         }
-
-        sendMessage(chatId, chatResponse, messageId);
-        log.error("{}", chatResponse, error);
     }
 
     private void sendEditMessage(Long chatId, String response, int messageId) {
@@ -327,9 +263,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
             String fileUrl = voice.getFileUrl(botToken);
             log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             File ogg = saveVoice(fileUrl, fileUniqueId);
-            log.debug("Voice has been saved {}", ogg.getAbsolutePath());
             Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
-//            safeDeleteFile(ogg);
+            safeDeleteFile(ogg);
 
             return fileOptional;
         } catch (TelegramApiException e) {
@@ -405,8 +340,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private int sendMessage(long chatId, String messageText) {
-        return sendMessage(chatId, messageText, null);
+    private void sendMessage(long chatId, String messageText) {
+        sendMessage(chatId, messageText, null);
     }
 
     private StreamResponse handleEvent(ServerSentEvent<String> event) {
@@ -417,6 +352,47 @@ public class TelegramBotService extends TelegramLongPollingBot {
         } catch (JsonProcessingException e) {
             log.error("Error processing JSON: " + e.getMessage());
             throw new EventHandlingException("Failed to handle event: " + data);
+        }
+    }
+
+    private void processVoiceAndGetAnswerFromChat(Message message) {
+        String chatResponse = "Unexpected error";
+        sendMessage(message.getChatId(), "Processing your voice. Wait.",
+                message.getMessageId());
+        File mp3 = null;
+        Interview interview = interviewService.getActiveIfExistOrCreateByChatId(message.getChatId());
+        try {
+            mp3 = processVoice(message)
+                    .orElseThrow(FileNotFoundException::new);
+            String transcribed = openAIService.transcribe(mp3).text();
+            interview.addMessage(openAIService.createMessage(transcribed));
+            List<ChatMessage> conversation = interview.getConversation();
+            var response = openAIService.search(conversation);
+            log.debug("{}", response.toString());
+            chatResponse = response.getChoices()
+                    .stream()
+                    .map(choice -> {
+                        var m = choice.getMessage();
+                        interview.addMessage(m);
+                        return m.getContent();
+                    })
+                    .collect(Collectors.joining());
+            log.trace("Got response text {}", chatResponse);
+            interviewService.update(interview);
+        } catch (OpenAIRequestException e) {
+            chatResponse = "Error occurred during AI request, you can try forward voice";
+            log.error("{}", chatResponse, e);
+        } catch (TooManyRequestsException e) {
+            chatResponse = "Too many requests, retry has fallen, you can try forward voice";
+            log.error("{}", chatResponse, e);
+        } catch (IOException e) {
+            chatResponse = "Error occurred during file processing, you can try forward voice";
+            log.error("{}", chatResponse, e);
+        } catch (Exception e) {
+            log.error("{}", chatResponse, e);
+        } finally {
+            sendMessage(message.getChatId(), chatResponse, message.getMessageId());
+            safeDeleteFile(mp3);
         }
     }
 }
