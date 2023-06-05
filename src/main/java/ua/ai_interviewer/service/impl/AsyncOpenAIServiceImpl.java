@@ -11,12 +11,10 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import ua.ai_interviewer.dto.chatgpt.ChatMessage;
-import ua.ai_interviewer.exception.OpenAIRequestException;
+import ua.ai_interviewer.service.AsyncOpenAIService;
 import ua.ai_interviewer.util.WebClientUtil;
 
-import java.time.Duration;
 import java.util.List;
 
 import static ua.ai_interviewer.util.WebClientUtil.CHAT_URI;
@@ -25,7 +23,7 @@ import static ua.ai_interviewer.util.WebClientUtil.createChatGPTRequest;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AsyncOpenAIServiceImpl {
+public class AsyncOpenAIServiceImpl implements AsyncOpenAIService {
 
 
     private final WebClient webClient;
