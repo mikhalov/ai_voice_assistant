@@ -4,6 +4,7 @@ import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 import ua.ai_interviewer.dto.chatgpt.ChatMessage;
+import ua.ai_interviewer.enums.Language;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -20,6 +21,8 @@ public class Interview {
     private String id;
     private Long chatId;
     private boolean active;
+    private boolean speeching;
+    private Language language;
     private List<ChatMessage> conversation;
 
     public void addMessage(ChatMessage message) {

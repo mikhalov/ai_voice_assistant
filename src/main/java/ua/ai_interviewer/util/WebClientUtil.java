@@ -3,7 +3,6 @@ package ua.ai_interviewer.util;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -59,7 +58,6 @@ public final class WebClientUtil {
                 });
     }
 
-    @NotNull
     public static RetryBackoffSpec retryAfterTooManyRequests() throws TooManyRequestsException {
         return Retry.backoff(MAX_RETRIES, RETRY_BACKOFF_DURATION)
                 .filter(TooManyRequestsException.class::isInstance)
@@ -77,10 +75,11 @@ public final class WebClientUtil {
                 .build();
     }
 
-    public static MultiValueMap<String, Object> createTranscriptionRequestBody(File file) {
+    public static MultiValueMap<String, Object> createTranscriptionRequestBody(File file, String language) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new FileSystemResource(file));
         body.add("model", WISPER.getValue());
+        body.add("language", language);
         return body;
     }
 }

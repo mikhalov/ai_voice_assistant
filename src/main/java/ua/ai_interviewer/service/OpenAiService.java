@@ -11,9 +11,9 @@ import java.util.List;
 
 public interface OpenAiService {
 
-    ChatGPTResponse search(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException;
+    ChatGPTResponse getResponseFromGpt(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException;
 
-    WisperResponse transcribe(File file) throws OpenAIRequestException, TooManyRequestsException;
+    WisperResponse transcribe(File file, String language) throws OpenAIRequestException, TooManyRequestsException;
 
     ChatMessage createMessage(String content);
 
