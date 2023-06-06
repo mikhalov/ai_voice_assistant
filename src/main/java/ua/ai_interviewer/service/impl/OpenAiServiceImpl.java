@@ -12,6 +12,7 @@ import reactor.core.publisher.Mono;
 import ua.ai_interviewer.dto.chatgpt.ChatGPTResponse;
 import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 import ua.ai_interviewer.dto.wisper.WisperResponse;
+import ua.ai_interviewer.enums.Language;
 import ua.ai_interviewer.enums.Role;
 import ua.ai_interviewer.exception.OpenAIRequestException;
 import ua.ai_interviewer.exception.TooManyRequestsException;
@@ -36,7 +37,7 @@ public class OpenAiServiceImpl implements OpenAiService {
     private String apiToken;
 
 
-    public ChatGPTResponse search(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException {
+    public ChatGPTResponse getResponseFromGpt(List<ChatMessage> conversation) throws OpenAIRequestException, TooManyRequestsException {
         var chatGPTRequest = createChatGPTRequest(conversation, false);
         log.debug("Sending POST to ChatGPT");
 
@@ -49,8 +50,8 @@ public class OpenAiServiceImpl implements OpenAiService {
         );
     }
 
-    public WisperResponse transcribe(File file) throws OpenAIRequestException, TooManyRequestsException {
-        var body = createTranscriptionRequestBody(file);
+    public WisperResponse transcribe(File file, String language) throws OpenAIRequestException, TooManyRequestsException {
+        var body = createTranscriptionRequestBody(file, language);
         log.debug("Sending POST to Wisper");
 
         return performPostRequest(TRANSCRIPT_URI, body, WisperResponse.class,

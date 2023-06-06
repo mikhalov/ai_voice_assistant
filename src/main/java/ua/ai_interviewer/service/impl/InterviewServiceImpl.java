@@ -3,6 +3,7 @@ package ua.ai_interviewer.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ua.ai_interviewer.enums.Language;
 import ua.ai_interviewer.model.Interview;
 import ua.ai_interviewer.repository.InterviewRepository;
 import ua.ai_interviewer.service.InterviewService;
@@ -33,13 +34,20 @@ public class InterviewServiceImpl implements InterviewService {
         return interviewRepository.findByChatIdAndActiveTrue(chatId);
     }
 
-    private Interview create(Long chatId) {
+    @Override
+    public Interview create(Long chatId, Language language, boolean speeching) {
         return interviewRepository.save(
                 Interview.builder()
                         .chatId(chatId)
                         .active(true)
+                        .language(language)
+                        .speeching(speeching)
                         .conversation(new ArrayList<>())
                         .build()
         );
+    }
+
+    private Interview create(Long chatId) {
+        return create(chatId, Language.ENGLISH, false);
     }
 }
