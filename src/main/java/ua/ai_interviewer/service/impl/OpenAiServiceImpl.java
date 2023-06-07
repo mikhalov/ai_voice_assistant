@@ -81,7 +81,6 @@ public class OpenAiServiceImpl implements OpenAiService {
                 .bodyToMono(responseClass)
                 .timeout(Duration.ofSeconds(120),
                         Mono.error(new OpenAIRequestException("Reached timeout of request")))
-                .doOnError(e -> log.error("Error during WebClient call", e))
                 .retryWhen(retryAfterTooManyRequests())
                 .blockOptional()
                 .orElseThrow(() -> new OpenAIRequestException(errorMessage));
