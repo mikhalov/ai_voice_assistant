@@ -48,6 +48,6 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     private Interview create(Long chatId) {
-        return create(chatId, Language.ENGLISH, false);
+        return create(chatId, Language.UKRAINIAN, true);
     }
 }
