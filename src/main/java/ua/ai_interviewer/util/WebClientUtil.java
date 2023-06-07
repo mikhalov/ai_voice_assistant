@@ -12,10 +12,7 @@ import reactor.util.retry.Retry;
 import reactor.util.retry.RetryBackoffSpec;
 import ua.ai_interviewer.dto.chatgpt.ChatGPTRequest;
 import ua.ai_interviewer.dto.chatgpt.ChatMessage;
-import ua.ai_interviewer.exception.OpenAIRequestException;
-import ua.ai_interviewer.exception.TokenLimitExceptions;
-import ua.ai_interviewer.exception.TooManyRequestsException;
-import ua.ai_interviewer.exception.UnauthorizedExeption;
+import ua.ai_interviewer.exception.*;
 
 import java.io.File;
 import java.time.Duration;
@@ -61,8 +58,23 @@ public final class WebClientUtil {
     public static RetryBackoffSpec retryAfterTooManyRequests() throws TooManyRequestsException {
         return Retry.backoff(MAX_RETRIES, RETRY_BACKOFF_DURATION)
                 .filter(TooManyRequestsException.class::isInstance)
+                .doAfterRetry(retryContext ->
+                        log.warn("After retry attempt {}. {}",
+                                retryContext.totalRetries(),
+                                retryContext.failure().getMessage()))
                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) ->
                         new TooManyRequestsException("Too Many Requests after retrying"));
+    }
+
+    public static RetryBackoffSpec retryWhenSendEmptyMessage() throws OpenAIRequestException {
+        return Retry.backoff(MAX_RETRIES, RETRY_BACKOFF_DURATION)
+                .filter(MessageSendingException.class::isInstance)
+                .doAfterRetry(retryContext ->
+                        log.warn("After retry attempt {}. {}",
+                                retryContext.totalRetries(),
+                                retryContext.failure().getMessage()))
+                .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) ->
+                        new OpenAIRequestException("Can not send edited message"));
     }
 
 

@@ -39,7 +39,6 @@ import ua.ai_interviewer.model.Interview;
 import ua.ai_interviewer.service.impl.AsyncOpenAIServiceImpl;
 import ua.ai_interviewer.util.AudioConverter;
 import ua.ai_interviewer.util.GoogleUtil;
-import ua.ai_interviewer.util.WebClientUtil;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -55,6 +54,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static ua.ai_interviewer.enums.Language.*;
+import static ua.ai_interviewer.util.WebClientUtil.retryAfterTooManyRequests;
+import static ua.ai_interviewer.util.WebClientUtil.retryWhenSendEmptyMessage;
 
 @Slf4j
 @Service
@@ -274,6 +275,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     }
                     response.append(content);
                 })
+                .retryWhen(retryAfterTooManyRequests())
                 .doOnError(error -> handleError(error, chatId, messageId))
                 .doOnComplete(() -> {
                     sendEditMessage(chatId, response.toString(), messageId);
@@ -288,11 +290,11 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
         Flux<Long> intervalFlux = Flux.interval(Duration.ofSeconds(2))
                 .doOnNext(tick -> sendEditMessage(chatId, response.toString(), messageId))
-                .doOnError(error -> log.error("Error occurred", error));
+                .retryWhen(retryWhenSendEmptyMessage())
+                .doOnError(error -> log.error("Error occurred while send edited message", error));
 
         intervalFlux.takeUntilOther(chatResponseHandler)
-                .retryWhen(WebClientUtil.retryAfterTooManyRequests())
-                .subscribe();
+                .blockLast(); // block because of main thread deletes user from activeUsers
     }
 
     private void handleError(Throwable error, Long chatId, Integer messageId) {
@@ -312,6 +314,10 @@ public class TelegramBotService extends TelegramLongPollingBot {
             }
             case TokenLimitExceptions e -> {
                 chatResponse = "Token limit has been reached, you can reset conversation";
+                log.error("{}", chatResponse, e);
+            }
+            case UncheckedIOException e -> {
+                chatResponse = "Error occurred during file processing, you can try forward voice";
                 log.error("{}", chatResponse, e);
             }
             case IOException e -> {
@@ -353,7 +359,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         }
     }
 
-    private Optional<File> processVoice(Message message) throws IOException {
+    private Optional<File> processVoice(Message message) throws UncheckedIOException {
         String fileId = message.getVoice().getFileId();
 
         try {
