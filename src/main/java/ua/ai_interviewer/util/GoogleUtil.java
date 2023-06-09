@@ -12,12 +12,22 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalTime;
-import java.util.List;
 
+/**
+ * Utility class for processing text-to-speech queries via Google Text-to-Speech API.
+ */
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class GoogleUtil {
 
+    /**
+     * Converts text to speech, and saves the audio to a file.
+     *
+     * @param text     The text to be converted.
+     * @param language The language of the text.
+     * @return The file with the audio content.
+     * @throws IOException If an I/O error occurs.
+     */
     public static File textToFile(String text, Language language) throws IOException {
         log.debug("started call to google api");
         try (TextToSpeechClient textToSpeechClient = TextToSpeechClient.create()) {
@@ -38,7 +48,8 @@ public final class GoogleUtil {
             ByteString audioContents = response.getAudioContent();
 
             int nano = LocalTime.now().getNano();
-            File file = new File(nano + ".ogg");
+            int hash = text.hashCode();
+            File file = new File(hash - nano + ".ogg");
             log.debug("try to save in file");
             try (OutputStream out = new FileOutputStream(file)) {
                 out.write(audioContents.toByteArray());

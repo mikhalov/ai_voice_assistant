@@ -1,91 +1,89 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.1.0</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>ua</groupId>
-	<artifactId>ai_interviewer</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>AI Interviewer</name>
-	<description>AI Interviewer project </description>
-	<properties>
-		<java.version>20</java.version>
-	</properties>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.0</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>ua</groupId>
+    <artifactId>ai_interviewer</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>AI Interviewer</name>
+    <description>AI Interviewer project</description>
+    <properties>
+        <java.version>20</java.version>
+    </properties>
 
-	<dependencies>
-	<!--	Starter	-->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-mongodb</artifactId>
-		</dependency>
-
-
-	<!--	Boilerplate	-->
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
-		</dependency>
-
-	<!--	Telegram	-->
-		<dependency>
-			<groupId>org.telegram</groupId>
-			<artifactId>telegrambots</artifactId>
-			<version>6.5.0</version>
-		</dependency>
-
-	<!--	Convertor	-->
-		<dependency>
-			<groupId>ws.schild</groupId>
-			<artifactId>jave-all-deps</artifactId>
-			<version>3.3.1</version>
-		</dependency>
-
-<!--	Google library	-->
-		<dependency>
-			<groupId>com.google.cloud</groupId>
-			<artifactId>google-cloud-texttospeech</artifactId>
-		</dependency>
-
-	</dependencies>
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>com.google.cloud</groupId>
-				<artifactId>libraries-bom</artifactId>
-				<version>26.14.0</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
+    <dependencies>
+        <!--	Starter	-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
 
 
+        <!--	Boilerplate	-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--	Telegram	-->
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots</artifactId>
+            <version>6.5.0</version>
+        </dependency>
+
+        <!--	Convertor	-->
+        <dependency>
+            <groupId>ws.schild</groupId>
+            <artifactId>jave-core</artifactId>
+            <version>3.3.1</version>
+        </dependency>
+
+        <!--	Google library	-->
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-texttospeech</artifactId>
+        </dependency>
+
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>libraries-bom</artifactId>
+                <version>26.14.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</exclude>
-					</excludes>
-				</configuration>
-			</plugin>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -96,6 +94,6 @@
                 </configuration>
             </plugin>
         </plugins>
-	</build>
+    </build>
 
 </project>

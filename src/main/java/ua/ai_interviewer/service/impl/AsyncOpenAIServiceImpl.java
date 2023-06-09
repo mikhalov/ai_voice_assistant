@@ -40,8 +40,7 @@ public class AsyncOpenAIServiceImpl implements AsyncOpenAIService {
     }
 
     private Flux<ServerSentEvent<String>> performPostRequest(Object bodyValue) {
-        ParameterizedTypeReference<ServerSentEvent<String>> type
-                = new ParameterizedTypeReference<>() {
+        ParameterizedTypeReference<ServerSentEvent<String>> type = new ParameterizedTypeReference<>() {
         };
 
         return webClient.post()

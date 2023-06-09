@@ -29,6 +29,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import ua.ai_interviewer.converter.AudioConverter;
 import ua.ai_interviewer.dto.chatgpt.ChatMessage;
 import ua.ai_interviewer.dto.chatgpt.StreamResponse;
 import ua.ai_interviewer.dto.telegram.UpdateContent;
@@ -37,7 +38,6 @@ import ua.ai_interviewer.enums.Role;
 import ua.ai_interviewer.exception.*;
 import ua.ai_interviewer.model.Interview;
 import ua.ai_interviewer.service.impl.AsyncOpenAIServiceImpl;
-import ua.ai_interviewer.util.AudioConverter;
 import ua.ai_interviewer.util.GoogleUtil;
 
 import java.io.*;
@@ -67,6 +67,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private final ObjectMapper objectMapper;
     private final InterviewService interviewService;
     private final OpenAiService openAIService;
+    private AudioConverter audioConverter;
     private final WebClient webClient;
     private final String botToken;
     @Value("${telegram.bot.username}")
@@ -79,6 +80,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                               WebClient webClient,
                               OpenAiService openAIService,
                               InterviewService interviewService,
+                              AudioConverter audioConverter,
                               @Value("${telegram.bot.token}") String botToken) {
         super(botToken);
         this.asyncOpenAIService = asyncOpenAIService;
@@ -86,6 +88,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         this.webClient = webClient;
         this.openAIService = openAIService;
         this.interviewService = interviewService;
+        this.audioConverter = audioConverter;
         this.botToken = botToken;
     }
 
@@ -371,7 +374,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
             String fileUrl = voice.getFileUrl(botToken);
             log.debug("File path {}. File id {} . File unique id {}", filePath, voice.getFileId(), fileUniqueId);
             File ogg = saveVoice(fileUrl, fileUniqueId);
-            Optional<File> fileOptional = Optional.of(AudioConverter.convertToMp3(ogg, fileUniqueId));
+            Optional<File> fileOptional = Optional.of(audioConverter.convertToMp3(ogg, fileUniqueId));
             safeDeleteFile(ogg);
 
             return fileOptional;
