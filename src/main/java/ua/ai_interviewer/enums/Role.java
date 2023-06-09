@@ -9,7 +9,8 @@ public enum Role {
     ASSISTANT("assistant");
 
     public final String value;
-    Role (String value) {
+
+    Role(String value) {
         this.value = value;
     }
 }
