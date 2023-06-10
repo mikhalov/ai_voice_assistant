@@ -1,4 +1,6 @@
-# **Project: AI Voice Assistant for Telegram**
+# **AI Voice Assistant for Telegram**
+## **How to Access the Bot**
+You can start using the bot by clicking on this [link](https://t.me/ai_voice_assistant_bot) or by searching for the username **@ai_voice_assistant_bot** on Telegram.
 ## **Project Description**
 My project focuses on developing an AI-powered Telegram bot that processes and responds to user audio messages in an interactive manner. Initially, the bot downloads the received audio files, converts them from .ogg to .mp3 format, and sends them to a Speech-to-Text API for transcription.
 
@@ -11,6 +13,8 @@ Users have the flexibility to switch the conversation language by executing the 
 ## **Technologies Used**
 * **Spring Boot**: Provides the framework for the application, supporting the operation of our bot.
 * **Spring Data**: Enables seamless integration with MongoDB for efficient storage and retrieval of conversation histories.
+* **Docker**: Used for containerization of the application, facilitating ease in deployment and scalability.
+* **Google Cloud Run**: Platform used for deploying the containerized application, ensuring it's accessible and scalable.
 * **MongoDB**: Acts as the database to store and manage conversation histories.
 * **WebFlux**: Uses server-sent events for asynchronous communication with the ChatGPT API, ensuring real-time conversation handling also using for other requests in static variant.
 * **WebClient**: Handles interactions between the application and various APIs.
