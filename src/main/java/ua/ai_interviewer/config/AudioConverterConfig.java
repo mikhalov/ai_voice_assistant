@@ -1,5 +1,6 @@
 package ua.ai_interviewer.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ua.ai_interviewer.converter.AudioConverter;
@@ -9,10 +10,21 @@ import ws.schild.jave.process.ProcessLocator;
 
 @Configuration
 public class AudioConverterConfig {
+    @Value("${ffmpeg.path.windows}")
+    private String winPath;
+    @Value("${ffmpeg.path.linux}")
+    private String linPath;
+
 
     @Bean
     public ProcessLocator processLocator() {
-        return new CustomFFMPEGLocator("/usr/bin/ffmpeg");
+        String currentOsPath = switch (System.getProperty("os.name").toLowerCase()) {
+            case String os when os.contains("win") -> winPath;
+            case String os when os.contains("nix") || os.contains("nux") || os.contains("aix") -> linPath;
+            default -> throw new IllegalStateException("App has not been ran on win or linux machine");
+        };
+
+        return new CustomFFMPEGLocator(currentOsPath);
     }
 
     @Bean
